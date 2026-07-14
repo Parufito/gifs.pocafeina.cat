@@ -48,6 +48,14 @@ header {
     padding: 4px 8px;
 }
 
+.logo {
+    height: 32px;
+    width: auto;
+    display: block;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
 .search-bar {
     flex: 1;
 }
@@ -153,9 +161,6 @@ header {
 
 .card .info {
     padding: 6px 8px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
 }
 
 .card .filename {

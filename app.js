@@ -1,5 +1,5 @@
 let galleryData = [];
-let activeCategory = 'all';
+let activeCategory = 'pics';
 let searchQuery = '';
 
 const $ = (sel) => document.querySelector(sel);
@@ -105,15 +105,23 @@ function isImageFile(file) {
     return file.type !== 'video' && !getName(file.path).toLowerCase().endsWith('.gif');
 }
 
-function actionsHtml(file) {
+function actionsHtml(file, isLightbox) {
+    const name = getName(file.path);
     const copyBtn = isImageFile(file)
         ? `<button class="action-btn copy-btn">&#128203;</button>`
         : '';
+    const label = isLightbox
+        ? `<span class="lightbox-name">${name}</span>`
+        : `<span class="filename" title="${name}">${name}</span>`;
+    const cls = isLightbox ? 'lightbox-actions' : 'card-actions';
     return `
-        <button class="action-btn download-btn">&#128190;</button>
-        <button class="action-btn link-btn">&#128279;</button>
-        ${copyBtn}
-        <button class="action-btn share-btn">&#128260;</button>`;
+        <div class="${cls}">
+            ${label}
+            <button class="action-btn download-btn">&#128190;</button>
+            <button class="action-btn link-btn">&#128279;</button>
+            ${copyBtn}
+            <button class="action-btn share-btn">&#128260;</button>
+        </div>`;
 }
 
 function attachActions(container, file) {
@@ -124,36 +132,44 @@ function attachActions(container, file) {
     container.querySelector('.share-btn').addEventListener('click', (e) => { e.stopPropagation(); shareFile(file); });
 }
 
+function makeCategoryItem(label, key, count) {
+    const li = document.createElement('li');
+    li.textContent = label + ' ';
+    if (activeCategory === key) li.className = 'active';
+    const span = document.createElement('span');
+    span.className = 'count';
+    span.textContent = count;
+    li.appendChild(span);
+    li.onclick = () => {
+        activeCategory = key;
+        searchQuery = '';
+        $('#search').value = '';
+        buildCategories();
+        renderGallery();
+    };
+    return li;
+}
+
 function buildCategories() {
     const ul = $('#categories');
     ul.innerHTML = '';
 
-    const allLi = document.createElement('li');
-    allLi.textContent = 'Tot';
-    allLi.className = activeCategory === 'all' ? 'active' : '';
     const total = galleryData.reduce((s, c) => s + c.files.length, 0);
-    allLi.innerHTML += ` <span class="count">${total}</span>`;
-    allLi.onclick = () => { activeCategory = 'all'; buildCategories(); renderGallery(); };
-    ul.appendChild(allLi);
+    ul.appendChild(makeCategoryItem('Tot', 'all', total));
 
     for (const cat of galleryData) {
-        const li = document.createElement('li');
-        li.textContent = cat.name;
-        li.className = activeCategory === cat.name ? 'active' : '';
-        li.innerHTML += ` <span class="count">${cat.files.length}</span>`;
-        li.onclick = () => { activeCategory = cat.name; buildCategories(); renderGallery(); };
-        ul.appendChild(li);
+        ul.appendChild(makeCategoryItem(cat.name, cat.name, cat.files.length));
     }
 }
 
 function getFilteredFiles() {
-    let files = [];
+    let files;
 
-    if (activeCategory === 'all') {
+    if (searchQuery || activeCategory === 'all') {
         files = galleryData.flatMap(cat => cat.files.map(f => ({ ...f, category: cat.name })));
     } else {
         const cat = galleryData.find(c => c.name === activeCategory);
-        if (cat) files = cat.files.map(f => ({ ...f, category: cat.name }));
+        files = cat ? cat.files.map(f => ({ ...f, category: cat.name })) : [];
     }
 
     if (searchQuery) {
@@ -185,7 +201,7 @@ function renderGallery() {
                 onmouseenter="this.play()" onmouseleave="this.pause();this.currentTime=0;"></video>`
             : `<img src="${file.path}" alt="${getName(file.path)}" loading="lazy">`;
 
-        card.innerHTML = `${media}<div class="info"><span class="filename" title="${getName(file.path)}">${getName(file.path)}</span><div class="card-actions">${actionsHtml(file)}</div></div>`;
+        card.innerHTML = `${media}<div class="info">${actionsHtml(file, false)}</div>`;
         attachActions(card, file);
         card.addEventListener('click', () => openLightbox(file));
         gallery.appendChild(card);
@@ -223,7 +239,7 @@ function openLightbox(file) {
             ? `<video src="${f.path}" controls autoplay loop class="lightbox-media"></video>`
             : `<img src="${f.path}" alt="${getName(f.path)}" class="lightbox-media">`;
 
-        card.innerHTML = `${media}<div class="lightbox-actions"><span class="lightbox-name">${getName(f.path)}</span>${actionsHtml(f)}</div>`;
+        card.innerHTML = `${media}${actionsHtml(f, true)}`;
         attachActions(card, f);
 
         lightboxState.prevBtn.style.display = idx === 0 ? 'none' : 'flex';
@@ -241,17 +257,19 @@ function openLightbox(file) {
     });
 
     overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) overlay.remove();
+        if (e.target === overlay) closeLightbox();
     });
 
+    function closeLightbox() {
+        overlay.remove();
+        document.removeEventListener('keydown', keyHandler);
+        lightboxState = null;
+    }
+
     function keyHandler(e) {
-        if (!document.contains(overlay)) {
-            document.removeEventListener('keydown', keyHandler);
-            return;
-        }
-        if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', keyHandler); }
-        if (e.key === 'ArrowLeft') showSlide(lightboxState.currentIndex - 1);
-        if (e.key === 'ArrowRight') showSlide(lightboxState.currentIndex + 1);
+        if (e.key === 'Escape') closeLightbox();
+        else if (e.key === 'ArrowLeft') showSlide(lightboxState.currentIndex - 1);
+        else if (e.key === 'ArrowRight') showSlide(lightboxState.currentIndex + 1);
     }
     document.addEventListener('keydown', keyHandler);
 
@@ -290,6 +308,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     $('#hamburger').addEventListener('click', () => {
         $('#sidebar').classList.toggle('open');
+    });
+
+    document.querySelector('.logo').addEventListener('click', () => {
+        activeCategory = 'pics';
+        searchQuery = '';
+        $('#search').value = '';
+        buildCategories();
+        renderGallery();
     });
 
     document.addEventListener('click', (e) => {
