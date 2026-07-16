@@ -90,7 +90,7 @@ async function shareFile(file) {
         const f = new File([blob], name, { type: blob.type, lastModified: Date.now() });
 
         if (navigator.share && navigator.canShare && navigator.canShare({ files: [f] })) {
-            await navigator.share({ files: [f], title: name });
+            await navigator.share({ files: [f] });
             showToast('Compartit!');
             return;
         }
